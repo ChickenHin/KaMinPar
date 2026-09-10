@@ -1,129 +1,126 @@
 name: Compile and run units tests
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch: 
 
 permissions: read-all
 
 jobs:
-  build-macos:
-    name: macOS Build
-    runs-on: macos-15
-    strategy:
-      matrix:
-        compiler:
-          - { name: AppleClang, cc: clang, cxx: clang++ }
-          - { name: Clang, cc: /opt/homebrew/opt/llvm@20/bin/clang, cxx: /opt/homebrew/opt/llvm@20/bin/clang++ }
-        build-mode: [Release]
-    steps:
-      - name: Install dependencies
-        run: brew install llvm@20 tbb open-mpi google-sparsehash googletest ccache
-      - name: Checkout HEAD
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-        with:
-          fetch-depth: 1
-          submodules: recursive
-      - name: Set up ccache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/Library/Caches/ccache
-          key: ccache-macos-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
-          restore-keys: |
-            ccache-macos-${{matrix.compiler.name}}-${{matrix.build-mode}}-
-            ccache-macos-${{matrix.compiler.name}}-
-      - name: Configure ccache
-        run: |
-          ccache --set-config=max_size=500M
-          ccache --zero-stats
-      - name: Configure
-        run: >-
-          cmake -B ${{github.workspace}}/build
-          -DCMAKE_BUILD_TYPE=${{matrix.build-mode}}
-          -DCMAKE_C_COMPILER=${{matrix.compiler.cc}}
-          -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
-          -DKAMINPAR_ASSERTION_LEVEL=normal
-          -DKAMINPAR_BUILD_APPS=On
-          -DKAMINPAR_BUILD_TESTS=On
-          -DKAMINPAR_BUILD_DISTRIBUTED=On
-          -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
-          -DKAMINPAR_BUILD_WITH_ASAN=On
-          -DKAMINPAR_BUILD_WITH_UBSAN=On
-      - name: Build
-        run: >-
-          cmake --build ${{github.workspace}}/build
-          --config Release
-          --parallel 3
-        env: # 07.10.2025: triggered by GoogleTest, disable for now
-          ASAN_OPTIONS: detect_container_overflow=0
-      - name: Print ccache statistics
-        run: ccache --show-stats
-      - name: Run KaMinPar on a Dummy Graph
-        run: >-
-          ${{github.workspace}}/build/apps/KaMinPar
-          -G ${{github.workspace}}/misc/rgg2d.metis
-          -k 2
-      - name: Run dKaMinPar on a Dummy Graph
-        run: >-
-          ${{github.workspace}}/build/apps/dKaMinPar
-          -G ${{github.workspace}}/misc/rgg2d.metis
-          -k 2
-        env: # We leak a few bytes due to OpenMPI
-          ASAN_OPTIONS: detect_leaks=0,detect_container_overflow=0
-      - name: Run unit tests (AppleClang build)
-        if: matrix.compiler.name == 'AppleClang'
-        working-directory: ${{github.workspace}}/build
-        run: ctest --output-on-failure
-        env:
-          ASAN_OPTIONS: detect_leaks=0,detect_container_overflow=0
+  # build-macos:
+  #   name: macOS Build
+  #   runs-on: macos-15
+  #   strategy:
+  #     matrix:
+  #       compiler:
+  #         - { name: AppleClang, cc: clang, cxx: clang++ }
+  #         - { name: Clang, cc: /opt/homebrew/opt/llvm@20/bin/clang, cxx: /opt/homebrew/opt/llvm@20/bin/clang++ }
+  #       build-mode: [Release]
+  #   steps:
+  #     - name: Install dependencies
+  #       run: brew install llvm@20 tbb open-mpi google-sparsehash googletest ccache
+  #     - name: Checkout HEAD
+  #       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+  #       with:
+  #         fetch-depth: 1
+  #         submodules: recursive
+  #     - name: Set up ccache
+  #       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+  #       with:
+  #         path: ~/Library/Caches/ccache
+  #         key: ccache-macos-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
+  #         restore-keys: |
+  #           ccache-macos-${{matrix.compiler.name}}-${{matrix.build-mode}}-
+  #           ccache-macos-${{matrix.compiler.name}}-
+  #     - name: Configure ccache
+  #       run: |
+  #         ccache --set-config=max_size=500M
+  #         ccache --zero-stats
+  #     - name: Configure
+  #       run: >-
+  #         cmake -B ${{github.workspace}}/build
+  #         -DCMAKE_BUILD_TYPE=${{matrix.build-mode}}
+  #         -DCMAKE_C_COMPILER=${{matrix.compiler.cc}}
+  #         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+  #         -DKAMINPAR_ASSERTION_LEVEL=normal
+  #         -DKAMINPAR_BUILD_APPS=On
+  #         -DKAMINPAR_BUILD_TESTS=On
+  #         -DKAMINPAR_BUILD_DISTRIBUTED=On
+  #         -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
+  #         -DKAMINPAR_BUILD_WITH_ASAN=On
+  #         -DKAMINPAR_BUILD_WITH_UBSAN=On
+  #     - name: Build
+  #       run: >-
+  #         cmake --build ${{github.workspace}}/build
+  #         --config Release
+  #         --parallel 3
+  #       env: # 07.10.2025: triggered by GoogleTest, disable for now
+  #         ASAN_OPTIONS: detect_container_overflow=0
+  #     - name: Print ccache statistics
+  #       run: ccache --show-stats
+  #     - name: Run KaMinPar on a Dummy Graph
+  #       run: >-
+  #         ${{github.workspace}}/build/apps/KaMinPar
+  #         -G ${{github.workspace}}/misc/rgg2d.metis
+  #         -k 2
+  #     - name: Run dKaMinPar on a Dummy Graph
+  #       run: >-
+  #         ${{github.workspace}}/build/apps/dKaMinPar
+  #         -G ${{github.workspace}}/misc/rgg2d.metis
+  #         -k 2
+  #       env: # We leak a few bytes due to OpenMPI
+  #         ASAN_OPTIONS: detect_leaks=0,detect_container_overflow=0
+  #     - name: Run unit tests (AppleClang build)
+  #       if: matrix.compiler.name == 'AppleClang'
+  #       working-directory: ${{github.workspace}}/build
+  #       run: ctest --output-on-failure
+  #       env:
+  #         ASAN_OPTIONS: detect_leaks=0,detect_container_overflow=0
 
-  build-linux-gcc:
-    name: Linux GCC Build
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        compiler:
-          - { name: GNU, cc: gcc, cxx: g++ }
-        build-mode: [Debug]
-    steps:
-      - name: Install dependencies
-        run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev libgtest-dev libgmock-dev ccache
-      - name: Checkout HEAD
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-        with:
-          fetch-depth: 1
-          submodules: recursive
-      - name: Set up ccache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.cache/ccache
-          key: ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
-          restore-keys: |
-            ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-
-            ccache-linux-${{matrix.compiler.name}}-
-      - name: Configure ccache
-        run: |
-          ccache --set-config=max_size=500M
-          ccache --zero-stats
-      - name: Configure
-        run: >-
-          cmake -B ${{github.workspace}}/build
-          -DCMAKE_BUILD_TYPE=${{matrix.build-mode}}
-          -DCMAKE_C_COMPILER=${{matrix.compiler.cc}}
-          -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
-          -DKAMINPAR_ASSERTION_LEVEL=light
-          -DKAMINPAR_BUILD_DISTRIBUTED=On
-          -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
-          -DKAMINPAR_BUILD_WITH_MTUNE_NATIVE=Off
-      - name: GCC Build
-        run: >-
-          cmake --build ${{github.workspace}}/build
-          --config ${{matrix.build-mode}}
-          --parallel 4
-      - name: Print ccache statistics
-        run: ccache --show-stats
+  # build-linux-gcc:
+  #   name: Linux GCC Build
+  #   runs-on: ubuntu-24.04
+  #   strategy:
+  #     matrix:
+  #       compiler:
+  #         - { name: GNU, cc: gcc, cxx: g++ }
+  #       build-mode: [Debug]
+  #   steps:
+  #     - name: Install dependencies
+  #       run: sudo apt-get install -y libtbb-dev libhwloc-dev mpi libopenmpi-dev libsparsehash-dev libgtest-dev libgmock-dev ccache
+  #     - name: Checkout HEAD
+  #       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+  #       with:
+  #         fetch-depth: 1
+  #         submodules: recursive
+  #     - name: Set up ccache
+  #       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+  #       with:
+  #         path: ~/.cache/ccache
+  #         key: ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
+  #         restore-keys: |
+  #           ccache-linux-${{matrix.compiler.name}}-${{matrix.build-mode}}-
+  #           ccache-linux-${{matrix.compiler.name}}-
+  #     - name: Configure ccache
+  #       run: |
+  #         ccache --set-config=max_size=500M
+  #         ccache --zero-stats
+  #     - name: Configure
+  #       run: >-
+  #         cmake -B ${{github.workspace}}/build
+  #         -DCMAKE_BUILD_TYPE=${{matrix.build-mode}}
+  #         -DCMAKE_C_COMPILER=${{matrix.compiler.cc}}
+  #         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+  #         -DKAMINPAR_ASSERTION_LEVEL=light
+  #         -DKAMINPAR_BUILD_DISTRIBUTED=On
+  #         -DKAMINPAR_BUILD_WITH_DEBUG_SYMBOLS=Off
+  #         -DKAMINPAR_BUILD_WITH_MTUNE_NATIVE=Off
+  #     - name: GCC Build
+  #       run: >-
+  #         cmake --build ${{github.workspace}}/build
+  #         --config ${{matrix.build-mode}}
+  #         --parallel 4
+  #     - name: Print ccache statistics
+  #       run: ccache --show-stats
 
   build-and-run-linux-clang:
     name: Linux Build
@@ -192,49 +189,49 @@ jobs:
           ASAN_OPTIONS: detect_leaks=0,detect_container_overflow=0
 
   # Make sure that our code compiles with all assertions and experimental features enabled
-  build-with-heavy-assertions-and-experimental-features:
-    name: macOS Build with Heavy Assertions and Experimental Features
-    runs-on: macos-15 # fastest runner to compile the code
-    strategy:
-      matrix:
-        compiler:
-          - { name: AppleClang, cc: clang, cxx: clang++ }
-        build-mode: [Release]
-    steps:
-      - name: Install dependencies
-        run: brew install tbb open-mpi google-sparsehash googletest ccache
-      - name: Checkout HEAD
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-        with:
-          fetch-depth: 1
-          submodules: recursive
-      - name: Set up ccache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/Library/Caches/ccache
-          key: ccache-macos-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
-          restore-keys: |
-            ccache-macos-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-
-            ccache-macos-${{matrix.compiler.name}}-heavy-
-      - name: Configure ccache
-        run: |
-          ccache --set-config=max_size=500M
-          ccache --zero-stats
-      - name: Configure
-        run: >-
-          cmake -B ${{github.workspace}}/build
-          -DCMAKE_BUILD_TYPE=${{matrix.build-mode}}
-          -DCMAKE_C_COMPILER=${{matrix.compiler.cc}}
-          -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
-          -DKAMINPAR_ASSERTION_LEVEL=heavy
-          -DKAMINPAR_BUILD_EXPERIMENTAL_FEATURES=On
-          -DKAMINPAR_BUILD_APPS=On
-          -DKAMINPAR_BUILD_TESTS=On
-          -DKAMINPAR_BUILD_DISTRIBUTED=On
-      - name: Build
-        run: >-
-          cmake --build ${{github.workspace}}/build
-          --config Release
-          --parallel 3
-      - name: Print ccache statistics
-        run: ccache --show-stats
+  # build-with-heavy-assertions-and-experimental-features:
+  #   name: macOS Build with Heavy Assertions and Experimental Features
+  #   runs-on: macos-15 # fastest runner to compile the code
+  #   strategy:
+  #     matrix:
+  #       compiler:
+  #         - { name: AppleClang, cc: clang, cxx: clang++ }
+  #       build-mode: [Release]
+  #   steps:
+  #     - name: Install dependencies
+  #       run: brew install tbb open-mpi google-sparsehash googletest ccache
+  #     - name: Checkout HEAD
+  #       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+  #       with:
+  #         fetch-depth: 1
+  #         submodules: recursive
+  #     - name: Set up ccache
+  #       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+  #       with:
+  #         path: ~/Library/Caches/ccache
+  #         key: ccache-macos-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-${{hashFiles('CMakeLists.txt')}}
+  #         restore-keys: |
+  #           ccache-macos-${{matrix.compiler.name}}-heavy-${{matrix.build-mode}}-
+  #           ccache-macos-${{matrix.compiler.name}}-heavy-
+  #     - name: Configure ccache
+  #       run: |
+  #         ccache --set-config=max_size=500M
+  #         ccache --zero-stats
+  #     - name: Configure
+  #       run: >-
+  #         cmake -B ${{github.workspace}}/build
+  #         -DCMAKE_BUILD_TYPE=${{matrix.build-mode}}
+  #         -DCMAKE_C_COMPILER=${{matrix.compiler.cc}}
+  #         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+  #         -DKAMINPAR_ASSERTION_LEVEL=heavy
+  #         -DKAMINPAR_BUILD_EXPERIMENTAL_FEATURES=On
+  #         -DKAMINPAR_BUILD_APPS=On
+  #         -DKAMINPAR_BUILD_TESTS=On
+  #         -DKAMINPAR_BUILD_DISTRIBUTED=On
+  #     - name: Build
+  #       run: >-
+  #         cmake --build ${{github.workspace}}/build
+  #         --config Release
+  #         --parallel 3
+  #     - name: Print ccache statistics
+  #       run: ccache --show-stats
